@@ -9,12 +9,14 @@ pipeline {
   }
 
   environment {
-    APP_NAME = 'task-manager'
-    VERSION  = "1.0.${env.BUILD_NUMBER}"
+    APP_NAME    = 'task-manager'
+    VERSION     = "1.0.${env.BUILD_NUMBER}"
+    DOCKER_USER = 'your-dockerhub-username'   // ← change this to your Docker Hub username
   }
 
   stages {
 
+    // ── Stage 1: Checkout ──────────────────────────────────────────────────
     stage('Checkout') {
       agent { label 'built-in' }
       steps {
@@ -26,17 +28,13 @@ pipeline {
       }
     }
 
+    // ── Stage 2: Parallel Build & Test ─────────────────────────────────────
     stage('Parallel Build') {
       parallel {
 
-        // ── Java Backend ─────────────────────────────────────────────────────
-        // The Java source has a type bug at TaskController.java line 69:
-        //   Map.of("total", taskService.getAllTasks().size(), ...)
-        //   .size() returns int but Map expects Long — won't compile.
-        //
-        // FIX: Use sed to patch the file in the workspace BEFORE Maven runs.
-        //   We cast .size() to (long) so the type inference resolves correctly.
-        //   This patches only the workspace copy — the repo is NOT changed.
+        // ── Java Backend ───────────────────────────────────────────────────
+        // Patches the Long/Integer type bug in TaskController.java using sed
+        // before Maven compiles — no source code change needed.
         stage('Java Backend') {
           agent {
             docker {
@@ -46,12 +44,9 @@ pipeline {
           steps {
             dir('backend') {
               sh '''
-                echo "=== Patching TaskController.java type bug (Long vs Integer) ==="
+                echo "=== Patching TaskController.java type bug ==="
                 sed -i 's/taskService.getAllTasks().size()/(long) taskService.getAllTasks().size()/g' \
                   src/main/java/com/devops/practice/controller/TaskController.java
-
-                echo "=== Verifying patch applied ==="
-                grep -n "getAllTasks" src/main/java/com/devops/practice/controller/TaskController.java
 
                 echo "=== Running Maven build ==="
                 mvn clean package -DskipTests -Dmaven.repo.local=${WORKSPACE}/.m2
@@ -64,8 +59,7 @@ pipeline {
           }
         }
 
-        // ── React Frontend ────────────────────────────────────────────────────
-        // npm install (not ci) — repo has no package-lock.json
+        // ── React Frontend ─────────────────────────────────────────────────
         stage('React Frontend') {
           agent {
             docker {
@@ -84,8 +78,7 @@ pipeline {
           }
         }
 
-        // ── Python Tests ──────────────────────────────────────────────────────
-        // venv in /tmp avoids permission issues; PYTHONPATH finds app.py
+        // ── Python Tests ───────────────────────────────────────────────────
         stage('Python Tests') {
           agent {
             docker {
@@ -108,12 +101,117 @@ pipeline {
         }
 
       } // end parallel
-    }   // end stage
+    }   // end Parallel Build
+
+    // ── Stage 3: Docker Build ──────────────────────────────────────────────
+    // Builds Docker images for all 3 services in parallel.
+    // Each image is tagged with both the build version and 'latest'.
+    // Runs only after ALL parallel build/test stages pass.
+    stage('Docker Build') {
+      agent { label 'built-in' }
+      steps {
+        script {
+          echo "🐳 Building Docker images — version: ${VERSION}"
+
+          parallel(
+
+            // ── Backend image ──────────────────────────────────────────────
+            'backend-image': {
+              dir('backend') {
+                // Patch the type bug before docker build (same fix as above)
+                sh '''
+                  sed -i 's/taskService.getAllTasks().size()/(long) taskService.getAllTasks().size()/g' \
+                    src/main/java/com/devops/practice/controller/TaskController.java
+                '''
+                def backendImage = docker.build("${DOCKER_USER}/${APP_NAME}-api:${VERSION}")
+                backendImage.tag("latest")
+                echo "✅ Backend image built: ${DOCKER_USER}/${APP_NAME}-api:${VERSION}"
+              }
+            },
+
+            // ── Frontend image ─────────────────────────────────────────────
+            'frontend-image': {
+              dir('frontend') {
+                def frontendImage = docker.build("${DOCKER_USER}/${APP_NAME}-ui:${VERSION}")
+                frontendImage.tag("latest")
+                echo "✅ Frontend image built: ${DOCKER_USER}/${APP_NAME}-ui:${VERSION}"
+              }
+            },
+
+            // ── Python analytics image ─────────────────────────────────────
+            'analytics-image': {
+              dir('python-service') {
+                def analyticsImage = docker.build("${DOCKER_USER}/${APP_NAME}-analytics:${VERSION}")
+                analyticsImage.tag("latest")
+                echo "✅ Analytics image built: ${DOCKER_USER}/${APP_NAME}-analytics:${VERSION}"
+              }
+            }
+
+          ) // end parallel inside script
+        }
+      }
+      post {
+        success {
+          echo """
+          ✅ Docker images built successfully:
+             ${DOCKER_USER}/${APP_NAME}-api:${VERSION}
+             ${DOCKER_USER}/${APP_NAME}-ui:${VERSION}
+             ${DOCKER_USER}/${APP_NAME}-analytics:${VERSION}
+          """
+        }
+        failure { echo '❌ Docker Build stage failed — check Dockerfile syntax or build errors above' }
+      }
+    } // end Docker Build
+
+    // ── Stage 4: Docker Push ───────────────────────────────────────────────
+    // Pushes all 3 images to Docker Hub.
+    // Requires a Jenkins credential with ID 'dockerhub-creds'
+    //   → Dashboard → Manage Jenkins → Credentials → Add
+    //   → Kind: Username with password
+    //   → ID:   dockerhub-creds
+    //   → Username: your Docker Hub username
+    //   → Password: your Docker Hub password or access token
+    stage('Docker Push') {
+      agent { label 'built-in' }
+      steps {
+        script {
+          docker.withRegistry('https://registry.hub.docker.com', 'dockerhub-creds') {
+            // Push backend
+            def backendImage = docker.image("${DOCKER_USER}/${APP_NAME}-api:${VERSION}")
+            backendImage.push("${VERSION}")
+            backendImage.push("latest")
+
+            // Push frontend
+            def frontendImage = docker.image("${DOCKER_USER}/${APP_NAME}-ui:${VERSION}")
+            frontendImage.push("${VERSION}")
+            frontendImage.push("latest")
+
+            // Push analytics
+            def analyticsImage = docker.image("${DOCKER_USER}/${APP_NAME}-analytics:${VERSION}")
+            analyticsImage.push("${VERSION}")
+            analyticsImage.push("latest")
+          }
+        }
+      }
+      post {
+        success { echo "✅ All images pushed to Docker Hub as version ${VERSION} and latest" }
+        failure { echo '❌ Docker Push failed — check dockerhub-creds credential in Jenkins' }
+      }
+    } // end Docker Push
 
   } // end stages
 
   post {
-    success { echo 'PIPELINE PASSED' }
+    success {
+      echo """
+      ╔══════════════════════════════════════════════════╗
+      ║  ✅  PIPELINE PASSED — Build #${BUILD_NUMBER}
+      ║  Images: ${DOCKER_USER}/${APP_NAME}-api:${VERSION}
+      ║          ${DOCKER_USER}/${APP_NAME}-ui:${VERSION}
+      ║          ${DOCKER_USER}/${APP_NAME}-analytics:${VERSION}
+      ╚══════════════════════════════════════════════════╝
+      """
+    }
     failure { echo 'PIPELINE FAILED' }
     always  { echo "Build #${BUILD_NUMBER} finished: ${currentBuild.result ?: 'SUCCESS'}" }
   }
