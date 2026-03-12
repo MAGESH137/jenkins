@@ -1,0 +1,33 @@
+version: '3.8'
+
+# ── Integration test stack (used by Jenkins pipeline Stage 4) ─────────────────
+# Runs pre-built images (no build step here — images built in Stage 3)
+
+services:
+
+  backend:
+    image: task-manager-api:${BUILD_NUMBER:-latest}
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+
+  analytics:
+    image: task-manager-analytics:${BUILD_NUMBER:-latest}
+    build:
+      context: ./python-service
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    environment:
+      - TASK_API_URL=http://backend:8080/api
+    depends_on:
+      backend:
+        condition: service_healthy
