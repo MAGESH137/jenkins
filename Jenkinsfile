@@ -33,13 +33,9 @@ pipeline {
       parallel {
 
         // ── Java Backend ───────────────────────────────────────────────────
-        // Patches the Long/Integer type bug in TaskController.java using sed
-        // before Maven compiles — no source code change needed.
         stage('Java Backend') {
           agent {
-            docker {
-              image 'maven:3.9-eclipse-temurin-17'
-            }
+            docker { image 'maven:3.9-eclipse-temurin-17' }
           }
           steps {
             dir('backend') {
@@ -47,7 +43,6 @@ pipeline {
                 echo "=== Patching TaskController.java type bug ==="
                 sed -i 's/taskService.getAllTasks().size()/(long) taskService.getAllTasks().size()/g' \
                   src/main/java/com/devops/practice/controller/TaskController.java
-
                 echo "=== Running Maven build ==="
                 mvn clean package -DskipTests -Dmaven.repo.local=${WORKSPACE}/.m2
               '''
@@ -62,9 +57,7 @@ pipeline {
         // ── React Frontend ─────────────────────────────────────────────────
         stage('React Frontend') {
           agent {
-            docker {
-              image 'node:20-alpine'
-            }
+            docker { image 'node:20-alpine' }
           }
           steps {
             dir('frontend') {
@@ -81,9 +74,7 @@ pipeline {
         // ── Python Tests ───────────────────────────────────────────────────
         stage('Python Tests') {
           agent {
-            docker {
-              image 'python:3.11-slim'
-            }
+            docker { image 'python:3.11-slim' }
           }
           steps {
             dir('python-service') {
@@ -104,9 +95,11 @@ pipeline {
     }   // end Parallel Build
 
     // ── Stage 3: Docker Build ──────────────────────────────────────────────
-    // Builds Docker images for all 3 services in parallel.
-    // Each image is tagged with both the build version and 'latest'.
-    // Runs only after ALL parallel build/test stages pass.
+    // Patches broken source files BEFORE docker build runs them.
+    // Two known issues in source Dockerfiles:
+    //   1. backend/Dockerfile  → runs mvn without the (long) cast fix
+    //   2. frontend/Dockerfile → uses "npm ci --frozen-lockfile" but no package-lock.json
+    // Both are fixed here with sed before the docker build command runs.
     stage('Docker Build') {
       agent { label 'built-in' }
       steps {
@@ -115,81 +108,74 @@ pipeline {
 
           parallel(
 
-            // ── Backend image ──────────────────────────────────────────────
             'backend-image': {
               dir('backend') {
-                // Patch the type bug before docker build (same fix as above)
+                // Patch the Long/Integer type bug in the source before docker build
                 sh '''
                   sed -i 's/taskService.getAllTasks().size()/(long) taskService.getAllTasks().size()/g' \
                     src/main/java/com/devops/practice/controller/TaskController.java
                 '''
-                def backendImage = docker.build("${DOCKER_USER}/${APP_NAME}-api:${VERSION}")
-                backendImage.tag("latest")
+                def img = docker.build("${DOCKER_USER}/${APP_NAME}-api:${VERSION}")
+                img.tag("latest")
                 echo "✅ Backend image built: ${DOCKER_USER}/${APP_NAME}-api:${VERSION}"
               }
             },
 
-            // ── Frontend image ─────────────────────────────────────────────
             'frontend-image': {
               dir('frontend') {
-                def frontendImage = docker.build("${DOCKER_USER}/${APP_NAME}-ui:${VERSION}")
-                frontendImage.tag("latest")
+                // FIX: frontend/Dockerfile uses "npm ci --frozen-lockfile" but the
+                // repo has no package-lock.json. Patch it to "npm install" instead.
+                sh '''
+                  sed -i 's/npm ci --frozen-lockfile/npm install/g' Dockerfile
+                '''
+                def img = docker.build("${DOCKER_USER}/${APP_NAME}-ui:${VERSION}")
+                img.tag("latest")
                 echo "✅ Frontend image built: ${DOCKER_USER}/${APP_NAME}-ui:${VERSION}"
               }
             },
 
-            // ── Python analytics image ─────────────────────────────────────
             'analytics-image': {
               dir('python-service') {
-                def analyticsImage = docker.build("${DOCKER_USER}/${APP_NAME}-analytics:${VERSION}")
-                analyticsImage.tag("latest")
+                def img = docker.build("${DOCKER_USER}/${APP_NAME}-analytics:${VERSION}")
+                img.tag("latest")
                 echo "✅ Analytics image built: ${DOCKER_USER}/${APP_NAME}-analytics:${VERSION}"
               }
             }
 
-          ) // end parallel inside script
+          ) // end parallel
         }
       }
       post {
         success {
           echo """
-          ✅ Docker images built successfully:
+          ✅ All Docker images built:
              ${DOCKER_USER}/${APP_NAME}-api:${VERSION}
              ${DOCKER_USER}/${APP_NAME}-ui:${VERSION}
              ${DOCKER_USER}/${APP_NAME}-analytics:${VERSION}
           """
         }
-        failure { echo '❌ Docker Build stage failed — check Dockerfile syntax or build errors above' }
+        failure { echo '❌ Docker Build stage failed' }
       }
     } // end Docker Build
 
     // ── Stage 4: Docker Push ───────────────────────────────────────────────
-    // Pushes all 3 images to Docker Hub.
-    // Requires a Jenkins credential with ID 'dockerhub-creds'
-    //   → Dashboard → Manage Jenkins → Credentials → Add
-    //   → Kind: Username with password
-    //   → ID:   dockerhub-creds
-    //   → Username: your Docker Hub username
-    //   → Password: your Docker Hub password or access token
+    // Pre-requisite: Add a Jenkins credential with ID 'dockerhub-creds'
+    //   Dashboard → Manage Jenkins → Credentials → Global → Add Credentials
+    //   Kind: Username with password
+    //   ID:   dockerhub-creds
     stage('Docker Push') {
       agent { label 'built-in' }
       steps {
         script {
           docker.withRegistry('https://registry.hub.docker.com', 'dockerhub-creds') {
-            // Push backend
-            def backendImage = docker.image("${DOCKER_USER}/${APP_NAME}-api:${VERSION}")
-            backendImage.push("${VERSION}")
-            backendImage.push("latest")
+            docker.image("${DOCKER_USER}/${APP_NAME}-api:${VERSION}").push("${VERSION}")
+            docker.image("${DOCKER_USER}/${APP_NAME}-api:${VERSION}").push("latest")
 
-            // Push frontend
-            def frontendImage = docker.image("${DOCKER_USER}/${APP_NAME}-ui:${VERSION}")
-            frontendImage.push("${VERSION}")
-            frontendImage.push("latest")
+            docker.image("${DOCKER_USER}/${APP_NAME}-ui:${VERSION}").push("${VERSION}")
+            docker.image("${DOCKER_USER}/${APP_NAME}-ui:${VERSION}").push("latest")
 
-            // Push analytics
-            def analyticsImage = docker.image("${DOCKER_USER}/${APP_NAME}-analytics:${VERSION}")
-            analyticsImage.push("${VERSION}")
-            analyticsImage.push("latest")
+            docker.image("${DOCKER_USER}/${APP_NAME}-analytics:${VERSION}").push("${VERSION}")
+            docker.image("${DOCKER_USER}/${APP_NAME}-analytics:${VERSION}").push("latest")
           }
         }
       }
@@ -206,9 +192,10 @@ pipeline {
       echo """
       ╔══════════════════════════════════════════════════╗
       ║  ✅  PIPELINE PASSED — Build #${BUILD_NUMBER}
-      ║  Images: ${DOCKER_USER}/${APP_NAME}-api:${VERSION}
-      ║          ${DOCKER_USER}/${APP_NAME}-ui:${VERSION}
-      ║          ${DOCKER_USER}/${APP_NAME}-analytics:${VERSION}
+      ║  Images pushed:
+      ║    ${DOCKER_USER}/${APP_NAME}-api:${VERSION}
+      ║    ${DOCKER_USER}/${APP_NAME}-ui:${VERSION}
+      ║    ${DOCKER_USER}/${APP_NAME}-analytics:${VERSION}
       ╚══════════════════════════════════════════════════╝
       """
     }
