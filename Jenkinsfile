@@ -12,7 +12,7 @@ pipeline {
   environment {
     APP_NAME = 'task-manager'
     VERSION  = "1.0.${env.BUILD_NUMBER}"
-    REGISTRY = 'docker.io/your-dockerhub-username'
+    REGISTRY = 'docker.io/magesh137'
   }
 
   stages {
@@ -58,9 +58,13 @@ pipeline {
           }
           steps {
             dir('frontend') {
-              sh 'npm ci'
+
+              echo "Building React App"
+
+              sh 'npm install'
               sh 'npm run build'
-              archiveArtifacts artifacts: 'build/**'
+
+              archiveArtifacts artifacts: 'build/**', allowEmptyArchive: true
             }
           }
         }
@@ -73,8 +77,14 @@ pipeline {
           }
           steps {
             dir('python-service') {
+
               sh 'pip install -r requirements.txt'
-              sh 'pytest tests/ --junitxml=pytest-results.xml'
+
+              sh '''
+                pytest tests/ \
+                --junitxml=pytest-results.xml
+              '''
+
               junit 'pytest-results.xml'
             }
           }
@@ -83,7 +93,6 @@ pipeline {
       }
     }
 
-    // ✅ FIXED DOCKER BUILD STAGE
     stage('Docker Build') {
       when {
         anyOf {
@@ -164,8 +173,13 @@ pipeline {
     success {
       echo "Pipeline SUCCESS - Version ${VERSION}"
     }
+
     failure {
       echo "Pipeline FAILED"
+    }
+
+    always {
+      echo "Build Finished"
     }
   }
 
