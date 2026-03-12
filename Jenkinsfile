@@ -54,8 +54,14 @@ pipeline {
 
           steps {
             dir('frontend') {
-              sh 'npm install'
-              sh 'npm run build'
+
+              sh '''
+                mkdir -p $WORKSPACE/.npm
+                npm config set cache $WORKSPACE/.npm
+                npm install
+                npm run build
+              '''
+
               archiveArtifacts artifacts: 'build/**', allowEmptyArchive: true
             }
           }
@@ -97,11 +103,11 @@ pipeline {
   post {
 
     success {
-      echo "Pipeline SUCCESS"
+      echo "PIPELINE SUCCESS"
     }
 
     failure {
-      echo "Pipeline FAILED"
+      echo "PIPELINE FAILED"
     }
 
   }
