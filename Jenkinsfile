@@ -11,7 +11,7 @@ pipeline {
   environment {
     APP_NAME    = 'task-manager'
     VERSION     = "1.0.${env.BUILD_NUMBER}"
-    DOCKER_USER = 'usernamefordevops'   // ← change this to your Docker Hub username
+    DOCKER_USER = 'luhider'   // ← change this to your Docker Hub username
   }
 
   stages {
