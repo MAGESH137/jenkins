@@ -1,6 +1,6 @@
 on:
-  workflow_dispatch:        
-    inputs:                 
+  workflow_dispatch:
+    inputs:
       environment:
         description: 'Which environment to deploy to?'
         required: true
@@ -8,4 +8,17 @@ on:
         type: choice
         options:
           - staging
-          - production  
+          - production
+
+jobs:
+  say-hello:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print a message
+        run: echo "Hello! GitHub Actions is working!"
+
+      - name: Print the date
+        run: date
+
+      - name: List files
+        run: ls -la
