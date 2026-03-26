@@ -13,13 +13,4 @@ jobs:
   build:                       
     runs-on: ubuntu-latest      
     steps:
-      - name: Step one
-        run: echo 'Building...'
-      - name: Step two
-        run: echo 'Still building...'
-
-  test:                        
-    runs-on: ubuntu-latest      
-    steps:
-      - name: Run tests
-        run: echo 'Testing...'
+      - uses: actions/checkout@v4
