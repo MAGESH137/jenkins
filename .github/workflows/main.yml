@@ -9,16 +9,17 @@ on:
         options:
           - staging
           - production
-
 jobs:
-  say-hello:
-    runs-on: ubuntu-latest
+  build:                       
+    runs-on: ubuntu-latest      
     steps:
-      - name: Print a message
-        run: echo "Hello! GitHub Actions is working!"
+      - name: Step one
+        run: echo 'Building...'
+      - name: Step two
+        run: echo 'Still building...'
 
-      - name: Print the date
-        run: date
-
-      - name: List files
-        run: ls -la
+  test:                        
+    runs-on: ubuntu-latest      
+    steps:
+      - name: Run tests
+        run: echo 'Testing...'
