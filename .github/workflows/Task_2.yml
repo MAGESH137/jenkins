@@ -1,0 +1,33 @@
+name: Multi-Triggres
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+on:
+  workflow_dispatch:        
+    inputs:                 
+      environment:
+        description: 'Which environment to deploy to?'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+jobs:
+  say-hello:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print a message
+        run: echo 'Welcome To All Devops Classes'
+
+      - name: Print the date
+        run: data -s
+
+      - name: Directory finds
+        run: pwd
