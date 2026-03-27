@@ -6,7 +6,7 @@ on:
       - main
 
 jobs:
-  say-hello:
+  Welocome-All:
     runs-on: ubuntu-latest
     steps:
       - name: Print a message
