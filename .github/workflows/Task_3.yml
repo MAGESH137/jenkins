@@ -7,7 +7,7 @@ on:
 
 
 jobs:
-  Node-Setup/Version:
+  Node-Setup-Version:
     runs-on: ubuntu-latest
     steps:
     - name: Download the repo code
