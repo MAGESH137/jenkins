@@ -13,7 +13,7 @@ jobs:
         run: echo 'Welcome To All Devops Classes'
 
       - name: Print the date
-        run: data -s
+        run: data
 
       - name: Directory finds
         run: pwd
