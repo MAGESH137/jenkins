@@ -1,0 +1,24 @@
+name: Build with Environment Variables
+
+on: [push]
+
+env:                              
+  NODE_ENV: Production_Ready
+  APP_NAME: Task-Manager-App
+  DOCKER_REGISTRY: docker.io
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:                        
+      BUILD_NUMBER: ${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show variables
+        env:                      
+          STEP_VAR: Welcome
+        run: |
+          echo 'App name: $APP_NAME'
+          echo 'Build number: $BUILD_NUMBER'
+          echo 'Step var: $STEP_VAR'
