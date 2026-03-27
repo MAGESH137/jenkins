@@ -16,9 +16,10 @@ jobs:
     steps: 
       - uses: actions/checkout@v4
       - run: |
-          npm install build
+          ls
+          pwd
           npm run build
-          ls 
+           
 
       - name: Upload built files as artifact
         uses: actions/upload-artifact@v4
