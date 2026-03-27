@@ -17,14 +17,14 @@ on:
           - production
 
 jobs:
-  say-hello:
+  Multi-Triggres:
     runs-on: ubuntu-latest
     steps:
       - name: Print a message
-        run: echo 'Welcome To All Devops Classes'
+        run: echo 'Hello from GitHub Actions'
 
       - name: List the Hidden Files
         run: ls -a
 
-      - name: Check Processes 
-        run: top
+      - name: disk space 
+        run: df
