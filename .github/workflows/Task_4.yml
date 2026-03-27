@@ -1,6 +1,6 @@
 name: Build with Environment Variables
 
-on: [push]
+on: [push] 
 
 env:                              
   NODE_ENV: Production_Ready
@@ -19,6 +19,6 @@ jobs:
         env:                      
           STEP_VAR: Welcome
         run: |
-          echo 'App name: $APP_NAME'
-          echo 'Build number: $BUILD_NUMBER'
-          echo 'Step var: $STEP_VAR'
+          echo "App name: $APP_NAME"
+          echo "Build number: $BUILD_NUMBER"
+          echo "Step var: $STEP_VAR"
