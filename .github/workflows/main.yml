@@ -1,26 +1,23 @@
-name: Build with Environment Variables
-
-on:
-  push:
-    branches:
-      - main
-env:                              
-  NODE_ENV: production
-  APP_NAME: task-manager
-  DOCKER_REGISTRY: docker.io
-
 jobs:
   build:
-    runs-on: ubuntu-latest
-    env:                          
-      BUILD_NUMBER: ${{ github.run_number }}
+    runs-on: 'ubuntu-latest'
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Show variables
-        env:                      
-          STEP_VAR: hello
-        run: |
-          echo 'App name: $APP_NAME'
-          echo 'Build number: $BUILD_NUMBER'
-          echo 'Step var: $STEP_VAR'
+      - uses: 'actions/checkout@v4'
+      - run: 'npm run build'
+      - name: 'Upload built files as artifact'
+        uses: 'actions/upload-artifact@v4'
+        with:
+          name: 'dist-files'
+          path: './frontend/dist'
+          retention-days: 1
+  deploy:
+    needs: 'build'
+    runs-on: 'ubuntu-latest'
+    steps:
+      - name: 'Download built files'
+        uses: 'actions/download-artifact@v4'
+        with:
+          name: 'dist-files'
+          path: './dist'
+      - name: 'Deploy the files'
+        run: "ls ./dist \n"
