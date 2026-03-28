@@ -1,0 +1,46 @@
+name: Conditional Steps Run Only When Needed
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set branch name
+        run: echo "BRANCH_NAME=${GITHUB_REF##*/}" >> $GITHUB_ENV
+
+      - name: Deploy to production
+        if: env.BRANCH_NAME == 'main'
+        run: echo "Deploying to production..."
+
+      - name: Deploy to staging
+        if: env.BRANCH_NAME == 'develop'
+        run: echo "Deploying to staging..."
+
+      - name: Cleanup temp files
+        if: always()
+        run: rm -rf /tmp/deploy_key
+
+      - name: Send failure notification
+        if: failure()
+        run: |
+          echo "Something went wrong. Sending alert..."
+          curl -X POST ${{ secrets.SLACK_WEBHOOK }} \
+          -H "Content-Type: application/json" \
+          -d '{"text":"Deploy failed"}'
+
+      - name: Send success notification
+        if: success()
+        run: |
+          echo "Deployment successful"
+          curl -X POST ${{ secrets.SLACK_WEBHOOK }} \
+          -H "Content-Type: application/json" \
+          -d '{"text":"Deploy succeeded"}'
