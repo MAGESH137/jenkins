@@ -1,7 +1,10 @@
 name: Build Three Stage PL One By One Passing
 
 on:
-  push: [main]
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
 
 jobs:
   test:
