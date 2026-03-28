@@ -18,7 +18,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: dist-files        
-          path: ./frontend/dist   
+          path: ./frontend   
           retention-days: 1     
 
   deploy:
