@@ -1,0 +1,26 @@
+name: Node-Version Testing on Multiple Versions
+
+on:
+  push:
+    branches: 
+      - main
+
+jobs:
+  Node-Setup-Version:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [16, 18, 20]
+
+    steps:
+      - name: Download the repo code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Check Node Version
+        run: node --version
