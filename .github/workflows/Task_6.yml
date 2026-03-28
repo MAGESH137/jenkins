@@ -11,17 +11,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - run: npm install
       - run: npm test
 
   build:
-    needs: test           
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - run: npm install
       - run: npm run build
 
   deploy:
-    needs: build          
+    needs: build
     runs-on: ubuntu-latest
     steps:
-      - run: echo 'Deploying...'
+      - run: echo "Deploying..."
