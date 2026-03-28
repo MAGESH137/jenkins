@@ -29,18 +29,18 @@ jobs:
         if: always()
         run: rm -rf /tmp/deploy_key
 
-      - name: Send failure notification
-        if: failure()
-        run: |
-          echo "Something went wrong. Sending alert..."
-          curl -X POST ${{ secrets.SLACK_WEBHOOK }} \
-          -H "Content-Type: application/json" \
-          -d '{"text":"Deploy failed"}'
-
       - name: Send success notification
-        if: success()
+        if: success() && env.SLACK_WEBHOOK != ''
         run: |
           echo "Deployment successful"
           curl -X POST ${{ secrets.SLACK_WEBHOOK }} \
           -H "Content-Type: application/json" \
           -d '{"text":"Deploy succeeded"}'
+
+      - name: Send failure notification
+        if: failure() && env.SLACK_WEBHOOK != ''
+        run: |
+          echo "Something went wrong. Sending alert..."
+          curl -X POST ${{ secrets.SLACK_WEBHOOK }} \
+          -H "Content-Type: application/json" \
+          -d '{"text":"Deploy failed"}'
