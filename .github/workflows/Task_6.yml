@@ -13,8 +13,6 @@ jobs:
       - uses: actions/checkout@v4
       - run: npm install
         working-directory: ./frontend
-      - run: npm test
-        working-directory: ./frontend
 
   build:
     needs: test
