@@ -12,13 +12,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: npm install
+        working-directory: ./frontend
       - run: npm run build
+        working-directory: ./frontend
 
       - name: Upload built files as artifact
         uses: actions/upload-artifact@v4
         with:
           name: dist-files        
-          path: ./frontend   
+          path: ./frontend/build   
           retention-days: 1     
 
   deploy:
